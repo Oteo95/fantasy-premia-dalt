@@ -38,8 +38,10 @@ if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
 else:
     # Orígenes por defecto: Vercel + localhost para desarrollo
+    # Usamos regex pattern para permitir todos los despliegues de Vercel
     allowed_origins = [
         "https://fantasy-premia-dalt.vercel.app",
+        "https://*.vercel.app",  # Permite todos los preview deployments de Vercel
         "http://localhost:5173",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
@@ -48,13 +50,51 @@ else:
 
 print(f"🌐 CORS configurado para orígenes: {', '.join(allowed_origins)}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,  # Orígenes específicos (no "*" cuando allow_credentials=True)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Función para validar orígenes con patrones
+def is_allowed_origin(origin: str) -> bool:
+    """Verifica si un origen está permitido, soportando wildcards"""
+    import re
+    for allowed in allowed_origins:
+        if allowed == origin:
+            return True
+        # Convertir patrón wildcard a regex
+        if "*" in allowed:
+            pattern = allowed.replace(".", r"\.").replace("*", ".*")
+            if re.match(f"^{pattern}$", origin):
+                return True
+    return False
+
+# Middleware personalizado para manejar CORS con wildcards
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        
+        # Manejar preflight OPTIONS
+        if request.method == "OPTIONS":
+            if origin and is_allowed_origin(origin):
+                response = Response()
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "*"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+                response.headers["Access-Control-Max-Age"] = "600"
+                return response
+        
+        response = await call_next(request)
+        
+        # Añadir headers CORS a la respuesta
+        if origin and is_allowed_origin(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
+
+app.add_middleware(CustomCORSMiddleware)
 
 security = HTTPBasic()
 
