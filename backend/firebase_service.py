@@ -6,13 +6,33 @@ Mantiene la ARQUITECTURA DE IDS: solo almacena IDs, no datos de cartas
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
+import json
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 
 # Inicializar Firebase Admin SDK
+# Soporta dos métodos de configuración:
+# 1. Variable de entorno FIREBASE_CONFIG con JSON como string
+# 2. Archivo JSON en firebase_config/ (fallback)
 import pathlib
-config_path = pathlib.Path(__file__).parent / "firebase_config" / "fantasy-de-dalt-firebase-adminsdk-fbsvc-061b5456f9.json"
-cred = credentials.Certificate(str(config_path))
+
+firebase_config_env = os.getenv("FIREBASE_CONFIG")
+
+if firebase_config_env:
+    # Cargar desde variable de entorno
+    try:
+        config_dict = json.loads(firebase_config_env)
+        cred = credentials.Certificate(config_dict)
+        print("✅ Firebase config cargada desde variable de entorno FIREBASE_CONFIG")
+    except json.JSONDecodeError as e:
+        print(f"❌ Error al parsear FIREBASE_CONFIG: {e}")
+        raise Exception("FIREBASE_CONFIG contiene JSON inválido")
+else:
+    # Cargar desde archivo (método tradicional)
+    config_path = pathlib.Path(__file__).parent / "firebase_config" / "fantasy-de-dalt-firebase-adminsdk-fbsvc-061b5456f9.json"
+    cred = credentials.Certificate(str(config_path))
+    print(f"✅ Firebase config cargada desde archivo: {config_path}")
+
 firebase_admin.initialize_app(cred)
 
 # Cliente de Firestore
