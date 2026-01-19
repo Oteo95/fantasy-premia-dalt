@@ -181,6 +181,23 @@ async def get_current_user(credentials: HTTPBasicCredentials = Depends(security)
     
     return user
 
+def verify_admin_password(credentials: HTTPBasicCredentials = Depends(security)) -> bool:
+    """
+    Verifica el password de administrador para endpoints de gestión
+    Password por defecto: adminpassword123 (configurable con ADMIN_PASSWORD env var)
+    """
+    admin_password = os.getenv("ADMIN_PASSWORD", "adminpassword123")
+    
+    # El password viene en credentials.password
+    if credentials.password != admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password de administrador incorrecto",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    return True
+
 def generate_pack_ids(pack_type: str = "standard") -> list[str]:
     """
     Genera un sobre de cartas del pool
@@ -573,10 +590,10 @@ async def get_rankings(period: str = "monthly"):
 # -----------------------------------------------------------------------------
 
 @app.get("/api/admin/codes")
-async def get_all_codes(user: dict = Depends(get_current_user)):
+async def get_all_codes(authorized: bool = Depends(verify_admin_password)):
     """
     Obtiene todos los códigos disponibles del archivo JSON
-    Requiere autenticación
+    Requiere password de administrador
     """
     codes = fb.get_all_codes()
     
@@ -594,10 +611,10 @@ async def get_all_codes(user: dict = Depends(get_current_user)):
     }
 
 @app.post("/api/admin/codes")
-async def create_code(request: AddCodeRequest, user: dict = Depends(get_current_user)):
+async def create_code(request: AddCodeRequest, authorized: bool = Depends(verify_admin_password)):
     """
     Crea un nuevo código en el archivo JSON
-    Requiere autenticación
+    Requiere password de administrador
     """
     try:
         # Convertir string ISO a datetime
@@ -636,10 +653,10 @@ async def create_code(request: AddCodeRequest, user: dict = Depends(get_current_
         )
 
 @app.put("/api/admin/codes/{code}")
-async def update_code_endpoint(code: str, request: UpdateCodeRequest, user: dict = Depends(get_current_user)):
+async def update_code_endpoint(code: str, request: UpdateCodeRequest, authorized: bool = Depends(verify_admin_password)):
     """
     Actualiza un código existente en el archivo JSON
-    Requiere autenticación
+    Requiere password de administrador
     """
     try:
         # Convertir string ISO a datetime si se proporciona
@@ -681,10 +698,10 @@ async def update_code_endpoint(code: str, request: UpdateCodeRequest, user: dict
         )
 
 @app.delete("/api/admin/codes/{code}")
-async def delete_code_endpoint(code: str, user: dict = Depends(get_current_user)):
+async def delete_code_endpoint(code: str, authorized: bool = Depends(verify_admin_password)):
     """
     Elimina un código del archivo JSON
-    Requiere autenticación
+    Requiere password de administrador
     """
     success = fb.delete_code(code)
     
