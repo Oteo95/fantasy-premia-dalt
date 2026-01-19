@@ -13,9 +13,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_001": {
     id: "card_001",
-    playerId: "alvar_cano_nieves_12",
+    playerId: "alvar_cano_nieves_1",
     nombre: "Àlvar Cano Nieves",
-    numero: 12,
+    numero: 1,
     posicion: "Escolta",
     foto: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
@@ -187,9 +187,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_007": {
     id: "card_007",
-    playerId: "tomas_ferreira_cunha_11",
+    playerId: "tomas_ferreira_cunha_14",
     nombre: "Tomás Ferreira Cunha",
-    numero: 11,
+    numero: 14,
     posicion: "Escolta",
     foto: "https://images.unsplash.com/photo-1520974735194-6c6a3d6b2f96?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
@@ -216,9 +216,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_008": {
     id: "card_008",
-    playerId: "alberto_oteo_garcia_10",
+    playerId: "alberto_oteo_garcia_11",
     nombre: "Alberto Oteo García",
-    numero: 10,
+    numero: 11,
     posicion: "Base",
     foto: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
@@ -274,9 +274,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_010": {
     id: "card_010",
-    playerId: "david_pascual_fernandez_8",
+    playerId: "david_pascual_fernandez_7",
     nombre: "David Pascual Fernández",
-    numero: 8,
+    numero: 7,
     posicion: "Escolta",
     foto: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
@@ -303,9 +303,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_011": {
     id: "card_011",
-    playerId: "david_lopez_gonzalez_9",
+    playerId: "david_lopez_gonzalez_5",
     nombre: "David López González",
-    numero: 9,
+    numero: 5,
     posicion: "Alero",
     foto: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
