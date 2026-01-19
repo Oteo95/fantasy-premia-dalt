@@ -133,7 +133,7 @@ class OpenPackResponse(BaseModel):
     packType: str
 
 class SaveLineupRequest(BaseModel):
-    lineup: dict[str, str]  # Cambiado de list a dict
+    lineup: dict[str, dict]  # Dict con posiciones como keys y objetos {id, playerId, multiplicador} como values
 
 class AddCodeRequest(BaseModel):
     code: str
@@ -147,6 +147,23 @@ class UpdateCodeRequest(BaseModel):
     validUntil: Optional[str] = None  # ISO format datetime string
     description: Optional[str] = None
     active: Optional[bool] = None
+
+class CreatePlayerRequest(BaseModel):
+    nombre: str
+    numero: int
+    posicion: str
+    equipo: Optional[str] = "Premia de Dalt - Senior Masc. A"
+    activo: Optional[bool] = True
+    cardIds: Optional[list[str]] = []
+
+class JornadaStatsRequest(BaseModel):
+    jornada: int
+    fecha: str  # ISO format
+    rival: str
+    local: Optional[bool] = True
+    resultado: Optional[str] = ""
+    victoria: Optional[bool] = False
+    stats: dict  # Diccionario con todas las estadísticas del partido
 
 # =============================================================================
 # FUNCIONES AUXILIARES
@@ -412,7 +429,7 @@ async def get_current_user_data(user: dict = Depends(get_current_user)):
 async def save_lineup(request: SaveLineupRequest, user: dict = Depends(get_current_user)):
     """
     Guarda la alineación del usuario como diccionario
-    Recibe y devuelve diccionario con keys de posición
+    Recibe diccionario con keys de posición y valores con {id, playerId, multiplicador}
     1 query a Firestore
     """
     # Validar posiciones válidas
@@ -426,11 +443,26 @@ async def save_lineup(request: SaveLineupRequest, user: dict = Depends(get_curre
     
     # Validar que todas las cartas pertenecen al usuario
     user_card_ids = user.get("cardIds", [])
-    for card_id in request.lineup.values():
+    for position_data in request.lineup.values():
+        # Cada valor debe ser un diccionario con id, playerId, multiplicador
+        if not isinstance(position_data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cada posición debe contener un objeto con id, playerId y multiplicador"
+            )
+        
+        card_id = position_data.get("id")
         if card_id and card_id not in user_card_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"La carta {card_id} no pertenece al usuario"
+            )
+        
+        # Validar que tenga los campos requeridos
+        if "id" not in position_data or "playerId" not in position_data or "multiplicador" not in position_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cada posición debe contener id, playerId y multiplicador"
             )
     
     # Validar máximo 5 posiciones
@@ -714,6 +746,80 @@ async def delete_code_endpoint(code: str, authorized: bool = Depends(verify_admi
     return {
         "success": True,
         "message": f"Código {code} eliminado exitosamente"
+    }
+
+# -----------------------------------------------------------------------------
+# JUGADORES Y ESTADÍSTICAS
+# -----------------------------------------------------------------------------
+
+@app.get("/api/players")
+async def get_all_players_endpoint():
+    """
+    Obtiene todos los jugadores activos con sus estadísticas
+    """
+    players = await fb.get_all_players(active_only=True)
+    return {"players": players}
+
+@app.get("/api/players/{player_id}")
+async def get_player_endpoint(player_id: str):
+    """
+    Obtiene un jugador específico con todas sus jornadas
+    """
+    player = await fb.get_player_by_id(player_id)
+    
+    if not player:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Jugador no encontrado"
+        )
+    
+    return player
+
+@app.get("/api/players/{player_id}/jornada/{jornada_num}")
+async def get_player_jornada_endpoint(player_id: str, jornada_num: int):
+    """
+    Obtiene las estadísticas de un jugador en una jornada específica
+    """
+    player = await fb.get_player_by_id(player_id)
+    
+    if not player:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Jugador no encontrado"
+        )
+    
+    jornadas = player.get("jornadasStats", [])
+    for jornada in jornadas:
+        if jornada["jornada"] == jornada_num:
+            return jornada
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"No se encontraron estadísticas para la jornada {jornada_num}"
+    )
+
+# NOTA: Las estadísticas se gestionan localmente (directamente en Firestore)
+# Los endpoints solo leen datos, no los modifican
+
+# -----------------------------------------------------------------------------
+# RANKINGS DE JUGADORES
+# -----------------------------------------------------------------------------
+
+@app.get("/api/rankings/players")
+async def get_players_ranking_endpoint(limit: int = 10, order_by: str = "puntosFantasy"):
+    """
+    Obtiene el ranking de jugadores
+    
+    Query params:
+    - limit: Número de resultados (default: 10)
+    - order_by: Campo de ordenación - "puntosFantasy", "puntos", "valoracion" (default: "puntosFantasy")
+    """
+    ranking = await fb.get_players_ranking(limit=limit, order_by=order_by)
+    
+    return {
+        "ranking": ranking,
+        "orderBy": order_by,
+        "limit": limit
     }
 
 # =============================================================================

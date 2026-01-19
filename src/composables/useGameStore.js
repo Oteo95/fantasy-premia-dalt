@@ -23,7 +23,7 @@ const userLineup = ref({
   pivot: null
 })
 const userLineupIds = ref({
-  base: null,
+  base: null,  // Ahora guarda {id, playerId, multiplicador}
   escolta: null,
   alero: null,
   alaPivot: null,
@@ -174,22 +174,62 @@ function setUserData(userData) {
   // El backend envía objeto con keys de posición o array (compatibilidad)
   const lineupData = userData.lineupIds || {}
   
-  // Si es array (legacy), convertir a objeto
+  // Si es array (legacy), convertir a objeto con formato antiguo (solo IDs)
   if (Array.isArray(lineupData)) {
     const positions = ['base', 'escolta', 'alero', 'alaPivot', 'pivot']
     userLineupIds.value = {}
     positions.forEach((pos, idx) => {
       const id = lineupData[idx]
-      userLineupIds.value[pos] = (id && id !== "") ? id : null
+      if (id && id !== "") {
+        // Migrar formato antiguo al nuevo
+        const cards = getCards([id])
+        if (cards.length > 0) {
+          userLineupIds.value[pos] = {
+            id: id,
+            playerId: cards[0].jugadorId || null,
+            multiplicador: 1.0
+          }
+        } else {
+          userLineupIds.value[pos] = null
+        }
+      } else {
+        userLineupIds.value[pos] = null
+      }
     })
   } else {
-    // Ya es objeto
+    // Es objeto - puede ser formato antiguo (string) o nuevo ({id, playerId, multiplicador})
     userLineupIds.value = {
-      base: lineupData.base || null,
-      escolta: lineupData.escolta || null,
-      alero: lineupData.alero || null,
-      alaPivot: lineupData.alaPivot || lineupData.ala_pivot || null,
-      pivot: lineupData.pivot || null
+      base: null,
+      escolta: null,
+      alero: null,
+      alaPivot: null,
+      pivot: null
+    }
+    
+    for (const [pos, value] of Object.entries(lineupData)) {
+      const normalizedPos = pos === 'ala_pivot' ? 'alaPivot' : pos
+      
+      if (value) {
+        // Verificar si es formato antiguo (string) o nuevo (objeto)
+        if (typeof value === 'string') {
+          // Formato antiguo: migrar al nuevo
+          const cards = getCards([value])
+          if (cards.length > 0) {
+            userLineupIds.value[normalizedPos] = {
+              id: value,
+              playerId: cards[0].jugadorId || null,
+              multiplicador: 1.0
+            }
+          }
+        } else if (typeof value === 'object' && value.id) {
+          // Formato nuevo: usar directamente
+          userLineupIds.value[normalizedPos] = {
+            id: value.id,
+            playerId: value.playerId || null,
+            multiplicador: value.multiplicador || 1.0
+          }
+        }
+      }
     }
   }
   
@@ -206,9 +246,9 @@ function setUserData(userData) {
     pivot: null
   }
   
-  for (const [position, cardId] of Object.entries(userLineupIds.value)) {
-    if (cardId) {
-      const cards = getCards([cardId])
+  for (const [position, lineupData] of Object.entries(userLineupIds.value)) {
+    if (lineupData && lineupData.id) {
+      const cards = getCards([lineupData.id])
       userLineup.value[position] = cards.length > 0 ? cards[0] : null
     }
   }
@@ -236,8 +276,9 @@ function addToCollection(cardIds) {
  * Añade una carta a la alineación en una posición específica
  * @param {Object} card - La carta a añadir
  * @param {String} position - La key de posición ('base', 'escolta', 'alero', 'alaPivot', 'pivot')
+ * @param {Number} multiplicador - Multiplicador de puntos (default: 1.0)
  */
-async function addToLineup(card, position) {
+async function addToLineup(card, position, multiplicador = 1.0) {
   // Validar posición
   const validPositions = ['base', 'escolta', 'alero', 'alaPivot', 'pivot']
   if (!validPositions.includes(position)) {
@@ -262,15 +303,23 @@ async function addToLineup(card, position) {
   
   // Actualizar localmente primero (optimistic update)
   userLineup.value[position] = card
-  userLineupIds.value[position] = card.id
+  userLineupIds.value[position] = {
+    id: card.id,
+    playerId: card.jugadorId || null,
+    multiplicador: multiplicador
+  }
   
   // Sincronizar con backend (enviar objeto completo, filtrando posiciones vacías)
   try {
     // Crear objeto solo con posiciones ocupadas
     const idsToSave = {}
-    for (const [pos, id] of Object.entries(userLineupIds.value)) {
-      if (id && id !== "") {
-        idsToSave[pos] = id
+    for (const [pos, lineupData] of Object.entries(userLineupIds.value)) {
+      if (lineupData && lineupData.id) {
+        idsToSave[pos] = {
+          id: lineupData.id,
+          playerId: lineupData.playerId,
+          multiplicador: lineupData.multiplicador
+        }
       }
     }
     await api.saveLineup(idsToSave)
@@ -311,9 +360,13 @@ async function removeFromLineup(position) {
   try {
     // Crear objeto solo con posiciones ocupadas
     const idsToSave = {}
-    for (const [pos, id] of Object.entries(userLineupIds.value)) {
-      if (id && id !== "") {
-        idsToSave[pos] = id
+    for (const [pos, lineupData] of Object.entries(userLineupIds.value)) {
+      if (lineupData && lineupData.id) {
+        idsToSave[pos] = {
+          id: lineupData.id,
+          playerId: lineupData.playerId,
+          multiplicador: lineupData.multiplicador
+        }
       }
     }
     await api.saveLineup(idsToSave)

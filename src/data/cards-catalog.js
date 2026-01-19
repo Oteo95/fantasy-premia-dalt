@@ -13,6 +13,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_001": {
     id: "card_001",
+    playerId: "alvar_cano_nieves_12",
     nombre: "Àlvar Cano Nieves",
     numero: 12,
     posicion: "Escolta",
@@ -41,6 +42,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_002": {
     id: "card_002",
+    playerId: "ian_olcina_munoz_10",
     nombre: "Ian Olcina Muñoz",
     numero: 10,
     posicion: "Base",
@@ -69,6 +71,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_003": {
     id: "card_003",
+    playerId: "marc_oliana_benedicto_12",
     nombre: "Marc Oliana Benedicto",
     numero: 12,
     posicion: "Alero",
@@ -97,6 +100,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_004": {
     id: "card_004",
+    playerId: "guillem_alsina_diaz_8",
     nombre: "Guillem Alsina Díaz",
     numero: 8,
     posicion: "Ala-Pívot",
@@ -125,6 +129,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_005": {
     id: "card_005",
+    playerId: "alejandro_de_haro_adsuara_6",
     nombre: "Alejandro de Haro Adsuara",
     numero: 6,
     posicion: "Pívot",
@@ -153,6 +158,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_006": {
     id: "card_006",
+    playerId: "victor_paez_bruguera_9",
     nombre: "Víctor Páez Bruguera",
     numero: 9,
     posicion: "Alero",
@@ -181,6 +187,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_007": {
     id: "card_007",
+    playerId: "tomas_ferreira_cunha_11",
     nombre: "Tomás Ferreira Cunha",
     numero: 11,
     posicion: "Escolta",
@@ -209,6 +216,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_008": {
     id: "card_008",
+    playerId: "alberto_oteo_garcia_10",
     nombre: "Alberto Oteo García",
     numero: 10,
     posicion: "Base",
@@ -237,6 +245,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_009": {
     id: "card_009",
+    playerId: "robert_cepeda_machuca_14",
     nombre: "Robert Cepeda Machuca",
     numero: 14,
     posicion: "Ala-Pívot",
@@ -265,6 +274,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_010": {
     id: "card_010",
+    playerId: "david_pascual_fernandez_8",
     nombre: "David Pascual Fernández",
     numero: 8,
     posicion: "Escolta",
@@ -293,6 +303,7 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_011": {
     id: "card_011",
+    playerId: "david_lopez_gonzalez_9",
     nombre: "David López González",
     numero: 9,
     posicion: "Alero",

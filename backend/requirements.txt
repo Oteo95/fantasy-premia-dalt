@@ -1,5 +1,12 @@
+# Backend API
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 pydantic==2.5.3
 python-multipart==0.0.6
+
+# Firebase
 firebase-admin==6.4.0
+
+# Importación de estadísticas desde Excel
+pandas==2.1.4
+openpyxl==3.1.2

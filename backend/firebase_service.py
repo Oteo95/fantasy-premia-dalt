@@ -43,36 +43,40 @@ db = firestore.client()
 # =============================================================================
 
 USERS_COLLECTION = "users"
-# Solo una colección: users. No se guardan sesiones ni códigos en Firestore.
+PLAYERS_COLLECTION = "players"
+# Colecciones: users (usuarios) y players (jugadores reales con estadísticas)
 
 # =============================================================================
 # POOL DE IDS DE CARTAS
 # El backend NO genera cartas, solo asigna IDs del catálogo del frontend
 # =============================================================================
 
+# Todas las cartas del catálogo del frontend son "common" por ahora
+# SINCRONIZADO con cards-catalog.js (card_001 a card_011)
 CARD_ID_POOLS = {
     "common": [
-        "card_001", "card_005", "card_009", "card_013", "card_017", "card_021"
+        "card_001", "card_002", "card_003", "card_004", "card_005",
+        "card_006", "card_007", "card_008", "card_009", "card_010", "card_011"
     ],
     "rare": [
-        "card_002", "card_006", "card_010", "card_014", "card_018", "card_022"
+        "card_002", "card_004", "card_006", "card_008"
     ],
     "epic": [
-        "card_003", "card_007", "card_011", "card_015", "card_019", "card_023"
+        "card_003", "card_007", "card_011"
     ],
     "legendary": [
-        "card_004", "card_008", "card_012", "card_016", "card_020", "card_024"
+        "card_004", "card_008"
     ]
 }
 
 # Pool de cartas por posición (para pack de bienvenida)
-# Incluye todas las variantes de cada jugador
+# SINCRONIZADO con el catálogo del frontend (cards-catalog.js)
 CARDS_BY_POSITION = {
-    "Base": ["card_001", "card_002", "card_003", "card_004", "card_021", "card_022", "card_023", "card_024"],
-    "Escolta": ["card_005", "card_006", "card_007", "card_008"],
-    "Alero": ["card_009", "card_010", "card_011", "card_012"],
-    "Ala-Pívot": ["card_013", "card_014", "card_015", "card_016"],
-    "Pívot": ["card_017", "card_018", "card_019", "card_020"]
+    "Base": ["card_002", "card_008"],  # Ian Olcina, Alberto Oteo
+    "Escolta": ["card_001", "card_007", "card_010"],  # Àlvar Cano, Tomás Ferreira, David Pascual
+    "Alero": ["card_003", "card_006", "card_011"],  # Marc Oliana, Víctor Páez, David López
+    "Ala-Pívot": ["card_004", "card_009"],  # Guillem Alsina, Robert Cepeda
+    "Pívot": ["card_005"]  # Alejandro de Haro
 }
 
 # =============================================================================
@@ -217,9 +221,10 @@ async def update_user_cards(user_id: str, card_ids: List[str]) -> bool:
     doc_ref.update({"cardIds": card_ids})
     return True
 
-async def update_user_lineup(user_id: str, lineup_ids: List[str]) -> bool:
+async def update_user_lineup(user_id: str, lineup_ids: Dict) -> bool:
     """
-    Actualiza la alineación del usuario (SOLO IDs)
+    Actualiza la alineación del usuario
+    Guarda diccionario con keys de posición y valores con {id, playerId, multiplicador}
     1 query a Firestore
     """
     doc_ref = db.collection(USERS_COLLECTION).document(user_id)
@@ -436,6 +441,488 @@ def delete_session(token: str) -> bool:
     if token in active_sessions:
         del active_sessions[token]
     return True
+
+# =============================================================================
+# FUNCIONES DE CÁLCULO DE ESTADÍSTICAS
+# =============================================================================
+
+def calcular_valoracion_acb(stats: Dict) -> float:
+    """
+    Calcula la valoración ACB de un jugador
+    Fórmula: (Puntos + Rebotes + Asistencias + Robos + Tapones + Tiros Anotados) - 
+             (Tiros Fallados + Pérdidas + Tiros Libres Fallados + Faltas)
+    """
+    tiros_anotados = stats.get("tiros2Anotados", 0) + stats.get("tiros3Anotados", 0)
+    tiros_fallados = (
+        (stats.get("tiros2Intentados", 0) - stats.get("tiros2Anotados", 0)) +
+        (stats.get("tiros3Intentados", 0) - stats.get("tiros3Anotados", 0))
+    )
+    tl_fallados = stats.get("tirosLibresIntentados", 0) - stats.get("tirosLibresAnotados", 0)
+    
+    valoracion = (
+        stats.get("puntos", 0) +
+        stats.get("rebotes", 0) +
+        stats.get("asistencias", 0) +
+        stats.get("robos", 0) +
+        stats.get("tapones", 0) +
+        tiros_anotados -
+        tiros_fallados -
+        stats.get("perdidas", 0) -
+        tl_fallados -
+        stats.get("faltas", 0)
+    )
+    
+    return round(valoracion, 2)
+
+def calcular_puntos_fantasy(stats: Dict, victoria: bool = False) -> float:
+    """
+    Calcula los puntos fantasy de un jugador
+    Sistema propio con bonificaciones por logros
+    """
+    puntos_base = (
+        stats.get("puntos", 0) * 1.0 +
+        stats.get("asistencias", 0) * 1.5 +
+        stats.get("rebotes", 0) * 1.2 +
+        stats.get("robos", 0) * 3.0 +
+        stats.get("tapones", 0) * 3.0 -
+        stats.get("perdidas", 0) * 1.0 -
+        stats.get("faltas", 0) * 0.5
+    )
+    
+    # Bonus por doble-doble (2 stats con 10+)
+    stats_10_plus = sum([
+        stats.get("puntos", 0) >= 10,
+        stats.get("rebotes", 0) >= 10,
+        stats.get("asistencias", 0) >= 10,
+        stats.get("robos", 0) >= 10,
+        stats.get("tapones", 0) >= 10
+    ])
+    
+    if stats_10_plus >= 2:
+        puntos_base += 5.0  # Doble-doble bonus
+    if stats_10_plus >= 3:
+        puntos_base += 15.0  # Triple-doble bonus (adicional)
+    
+    # Bonus por victoria
+    if victoria:
+        puntos_base += 2.0
+    
+    return round(puntos_base, 2)
+
+def calcular_promedios(stats_temporada: Dict, partidos_jugados: int) -> Dict:
+    """
+    Calcula los promedios por partido
+    """
+    if partidos_jugados == 0:
+        return {
+            "puntos": 0.0,
+            "asistencias": 0.0,
+            "rebotes": 0.0,
+            "robos": 0.0,
+            "tapones": 0.0,
+            "valoracion": 0.0,
+            "puntosFantasy": 0.0
+        }
+    
+    return {
+        "puntos": round(stats_temporada.get("puntos", 0) / partidos_jugados, 2),
+        "asistencias": round(stats_temporada.get("asistencias", 0) / partidos_jugados, 2),
+        "rebotes": round(stats_temporada.get("rebotes", 0) / partidos_jugados, 2),
+        "robos": round(stats_temporada.get("robos", 0) / partidos_jugados, 2),
+        "tapones": round(stats_temporada.get("tapones", 0) / partidos_jugados, 2),
+        "valoracion": round(stats_temporada.get("valoracion", 0) / partidos_jugados, 2),
+        "puntosFantasy": round(stats_temporada.get("puntosFantasy", 0) / partidos_jugados, 2)
+    }
+
+# =============================================================================
+# FUNCIONES DE JUGADORES Y ESTADÍSTICAS
+# =============================================================================
+
+async def get_all_players(active_only: bool = True) -> List[Dict]:
+    """
+    Obtiene todos los jugadores
+    """
+    players_ref = db.collection(PLAYERS_COLLECTION)
+    
+    if active_only:
+        query = players_ref.where("activo", "==", True)
+    else:
+        query = players_ref
+    
+    players = []
+    for doc in query.stream():
+        player_data = doc.to_dict()
+        player_data["playerId"] = doc.id
+        players.append(player_data)
+    
+    return players
+
+async def get_player_by_id(player_id: str) -> Optional[Dict]:
+    """
+    Obtiene un jugador por ID
+    """
+    doc_ref = db.collection(PLAYERS_COLLECTION).document(player_id)
+    doc = doc_ref.get()
+    
+    if doc.exists:
+        player_data = doc.to_dict()
+        player_data["playerId"] = doc.id
+        return player_data
+    
+    return None
+
+async def create_player(player_data: Dict) -> str:
+    """
+    Crea un nuevo jugador
+    """
+    # Estructura inicial del jugador
+    new_player = {
+        "nombre": player_data["nombre"],
+        "numero": player_data.get("numero", 0),
+        "posicion": player_data["posicion"],
+        "equipo": player_data.get("equipo", "Premia de Dalt - Senior Masc. A"),
+        "activo": player_data.get("activo", True),
+        "cardIds": player_data.get("cardIds", []),
+        "statsTemporada": {
+            "partidosJugados": 0,
+            "minutosJugados": 0,
+            "puntos": 0,
+            "asistencias": 0,
+            "rebotes": 0,
+            "rebotesOfensivos": 0,
+            "rebotesDefensivos": 0,
+            "robos": 0,
+            "tapones": 0,
+            "perdidas": 0,
+            "faltas": 0,
+            "tiros2Anotados": 0,
+            "tiros2Intentados": 0,
+            "tiros3Anotados": 0,
+            "tiros3Intentados": 0,
+            "tirosLibresAnotados": 0,
+            "tirosLibresIntentados": 0,
+            "valoracion": 0.0,
+            "puntosFantasy": 0.0
+        },
+        "promedios": {
+            "puntos": 0.0,
+            "asistencias": 0.0,
+            "rebotes": 0.0,
+            "robos": 0.0,
+            "tapones": 0.0,
+            "valoracion": 0.0,
+            "puntosFantasy": 0.0
+        },
+        "mejorPartido": None,
+        "jornadasStats": [],
+        "createdAt": firestore.SERVER_TIMESTAMP
+    }
+    
+    doc_ref = db.collection(PLAYERS_COLLECTION).add(new_player)
+    return doc_ref[1].id
+
+async def add_jornada_stats(player_id: str, jornada_data: Dict) -> Dict:
+    """
+    Añade estadísticas de una jornada a un jugador
+    Actualiza las estadísticas de temporada y promedios automáticamente
+    """
+    player = await get_player_by_id(player_id)
+    if not player:
+        raise Exception(f"Jugador {player_id} no encontrado")
+    
+    # Verificar que la jornada no exista ya
+    jornadas_existentes = player.get("jornadasStats", [])
+    jornada_num = jornada_data.get("jornada")
+    
+    for j in jornadas_existentes:
+        if j.get("jornada") == jornada_num:
+            raise Exception(f"Ya existen estadísticas para la jornada {jornada_num}")
+    
+    stats = jornada_data["stats"]
+    
+    # Calcular valoración y puntos fantasy
+    stats["valoracion"] = calcular_valoracion_acb(stats)
+    stats["puntosFantasy"] = calcular_puntos_fantasy(stats, jornada_data.get("victoria", False))
+    
+    # Preparar datos de la jornada
+    nueva_jornada = {
+        "jornada": jornada_num,
+        "fecha": jornada_data["fecha"],
+        "rival": jornada_data["rival"],
+        "local": jornada_data.get("local", True),
+        "resultado": jornada_data.get("resultado", ""),
+        "victoria": jornada_data.get("victoria", False),
+        "stats": stats
+    }
+    
+    # Actualizar estadísticas de temporada
+    stats_temporada = player.get("statsTemporada", {})
+    stats_temporada["partidosJugados"] = stats_temporada.get("partidosJugados", 0) + 1
+    
+    for key in ["minutosJugados", "puntos", "asistencias", "rebotes", "rebotesOfensivos", 
+                "rebotesDefensivos", "robos", "tapones", "perdidas", "faltas",
+                "tiros2Anotados", "tiros2Intentados", "tiros3Anotados", "tiros3Intentados",
+                "tirosLibresAnotados", "tirosLibresIntentados"]:
+        stats_temporada[key] = stats_temporada.get(key, 0) + stats.get(key, 0)
+    
+    stats_temporada["valoracion"] = round(stats_temporada.get("valoracion", 0) + stats["valoracion"], 2)
+    stats_temporada["puntosFantasy"] = round(stats_temporada.get("puntosFantasy", 0) + stats["puntosFantasy"], 2)
+    
+    # Calcular promedios
+    promedios = calcular_promedios(stats_temporada, stats_temporada["partidosJugados"])
+    
+    # Actualizar mejor partido
+    mejor_partido = player.get("mejorPartido")
+    if not mejor_partido or stats["valoracion"] > mejor_partido.get("valoracion", 0):
+        mejor_partido = {
+            "jornada": jornada_num,
+            "fecha": jornada_data["fecha"],
+            "puntos": stats["puntos"],
+            "valoracion": stats["valoracion"]
+        }
+    
+    # Añadir jornada al array
+    jornadas_existentes.append(nueva_jornada)
+    
+    # Ordenar jornadas por número
+    jornadas_existentes.sort(key=lambda x: x["jornada"])
+    
+    # Actualizar documento
+    doc_ref = db.collection(PLAYERS_COLLECTION).document(player_id)
+    doc_ref.update({
+        "statsTemporada": stats_temporada,
+        "promedios": promedios,
+        "mejorPartido": mejor_partido,
+        "jornadasStats": jornadas_existentes
+    })
+    
+    return {
+        "valoracion": stats["valoracion"],
+        "puntosFantasy": stats["puntosFantasy"],
+        "dobleDoble": sum([
+            stats.get("puntos", 0) >= 10,
+            stats.get("rebotes", 0) >= 10,
+            stats.get("asistencias", 0) >= 10,
+            stats.get("robos", 0) >= 10,
+            stats.get("tapones", 0) >= 10
+        ]) >= 2
+    }
+
+async def update_jornada_stats(player_id: str, jornada_num: int, stats_update: Dict) -> bool:
+    """
+    Actualiza las estadísticas de una jornada existente
+    Recalcula todas las estadísticas de temporada
+    """
+    player = await get_player_by_id(player_id)
+    if not player:
+        return False
+    
+    jornadas = player.get("jornadasStats", [])
+    jornada_encontrada = False
+    
+    for i, jornada in enumerate(jornadas):
+        if jornada["jornada"] == jornada_num:
+            # Actualizar stats
+            jornada["stats"].update(stats_update)
+            
+            # Recalcular valoración y puntos fantasy
+            jornada["stats"]["valoracion"] = calcular_valoracion_acb(jornada["stats"])
+            jornada["stats"]["puntosFantasy"] = calcular_puntos_fantasy(
+                jornada["stats"], 
+                jornada.get("victoria", False)
+            )
+            
+            jornadas[i] = jornada
+            jornada_encontrada = True
+            break
+    
+    if not jornada_encontrada:
+        return False
+    
+    # Recalcular todas las estadísticas de temporada
+    stats_temporada = {
+        "partidosJugados": len(jornadas),
+        "minutosJugados": 0,
+        "puntos": 0,
+        "asistencias": 0,
+        "rebotes": 0,
+        "rebotesOfensivos": 0,
+        "rebotesDefensivos": 0,
+        "robos": 0,
+        "tapones": 0,
+        "perdidas": 0,
+        "faltas": 0,
+        "tiros2Anotados": 0,
+        "tiros2Intentados": 0,
+        "tiros3Anotados": 0,
+        "tiros3Intentados": 0,
+        "tirosLibresAnotados": 0,
+        "tirosLibresIntentados": 0,
+        "valoracion": 0.0,
+        "puntosFantasy": 0.0
+    }
+    
+    mejor_partido = None
+    
+    for jornada in jornadas:
+        s = jornada["stats"]
+        for key in stats_temporada.keys():
+            if key not in ["partidosJugados"]:
+                stats_temporada[key] += s.get(key, 0)
+        
+        if not mejor_partido or s["valoracion"] > mejor_partido.get("valoracion", 0):
+            mejor_partido = {
+                "jornada": jornada["jornada"],
+                "fecha": jornada["fecha"],
+                "puntos": s["puntos"],
+                "valoracion": s["valoracion"]
+            }
+    
+    # Redondear
+    stats_temporada["valoracion"] = round(stats_temporada["valoracion"], 2)
+    stats_temporada["puntosFantasy"] = round(stats_temporada["puntosFantasy"], 2)
+    
+    # Calcular promedios
+    promedios = calcular_promedios(stats_temporada, stats_temporada["partidosJugados"])
+    
+    # Actualizar documento
+    doc_ref = db.collection(PLAYERS_COLLECTION).document(player_id)
+    doc_ref.update({
+        "statsTemporada": stats_temporada,
+        "promedios": promedios,
+        "mejorPartido": mejor_partido,
+        "jornadasStats": jornadas
+    })
+    
+    return True
+
+async def delete_jornada_stats(player_id: str, jornada_num: int) -> bool:
+    """
+    Elimina las estadísticas de una jornada y recalcula la temporada
+    """
+    player = await get_player_by_id(player_id)
+    if not player:
+        return False
+    
+    jornadas = player.get("jornadasStats", [])
+    jornadas_filtradas = [j for j in jornadas if j["jornada"] != jornada_num]
+    
+    if len(jornadas_filtradas) == len(jornadas):
+        return False  # No se encontró la jornada
+    
+    # Recalcular estadísticas de temporada
+    if len(jornadas_filtradas) == 0:
+        # Sin jornadas, resetear stats
+        stats_temporada = {
+            "partidosJugados": 0,
+            "minutosJugados": 0,
+            "puntos": 0,
+            "asistencias": 0,
+            "rebotes": 0,
+            "rebotesOfensivos": 0,
+            "rebotesDefensivos": 0,
+            "robos": 0,
+            "tapones": 0,
+            "perdidas": 0,
+            "faltas": 0,
+            "tiros2Anotados": 0,
+            "tiros2Intentados": 0,
+            "tiros3Anotados": 0,
+            "tiros3Intentados": 0,
+            "tirosLibresAnotados": 0,
+            "tirosLibresIntentados": 0,
+            "valoracion": 0.0,
+            "puntosFantasy": 0.0
+        }
+        promedios = calcular_promedios(stats_temporada, 0)
+        mejor_partido = None
+    else:
+        # Recalcular desde cero
+        stats_temporada = {
+            "partidosJugados": len(jornadas_filtradas),
+            "minutosJugados": 0,
+            "puntos": 0,
+            "asistencias": 0,
+            "rebotes": 0,
+            "rebotesOfensivos": 0,
+            "rebotesDefensivos": 0,
+            "robos": 0,
+            "tapones": 0,
+            "perdidas": 0,
+            "faltas": 0,
+            "tiros2Anotados": 0,
+            "tiros2Intentados": 0,
+            "tiros3Anotados": 0,
+            "tiros3Intentados": 0,
+            "tirosLibresAnotados": 0,
+            "tirosLibresIntentados": 0,
+            "valoracion": 0.0,
+            "puntosFantasy": 0.0
+        }
+        
+        mejor_partido = None
+        
+        for jornada in jornadas_filtradas:
+            s = jornada["stats"]
+            for key in stats_temporada.keys():
+                if key not in ["partidosJugados"]:
+                    stats_temporada[key] += s.get(key, 0)
+            
+            if not mejor_partido or s["valoracion"] > mejor_partido.get("valoracion", 0):
+                mejor_partido = {
+                    "jornada": jornada["jornada"],
+                    "fecha": jornada["fecha"],
+                    "puntos": s["puntos"],
+                    "valoracion": s["valoracion"]
+                }
+        
+        stats_temporada["valoracion"] = round(stats_temporada["valoracion"], 2)
+        stats_temporada["puntosFantasy"] = round(stats_temporada["puntosFantasy"], 2)
+        promedios = calcular_promedios(stats_temporada, stats_temporada["partidosJugados"])
+    
+    # Actualizar documento
+    doc_ref = db.collection(PLAYERS_COLLECTION).document(player_id)
+    doc_ref.update({
+        "statsTemporada": stats_temporada,
+        "promedios": promedios,
+        "mejorPartido": mejor_partido,
+        "jornadasStats": jornadas_filtradas
+    })
+    
+    return True
+
+async def get_players_ranking(limit: int = 10, order_by: str = "puntosFantasy") -> List[Dict]:
+    """
+    Obtiene el ranking de jugadores
+    """
+    players = await get_all_players(active_only=True)
+    
+    # Ordenar por el campo especificado en statsTemporada
+    if order_by == "puntosFantasy":
+        players.sort(key=lambda p: p.get("statsTemporada", {}).get("puntosFantasy", 0), reverse=True)
+    elif order_by == "puntos":
+        players.sort(key=lambda p: p.get("statsTemporada", {}).get("puntos", 0), reverse=True)
+    elif order_by == "valoracion":
+        players.sort(key=lambda p: p.get("statsTemporada", {}).get("valoracion", 0), reverse=True)
+    else:
+        players.sort(key=lambda p: p.get("statsTemporada", {}).get("puntosFantasy", 0), reverse=True)
+    
+    # Limitar resultados
+    players = players[:limit]
+    
+    # Añadir ranking
+    ranking = []
+    for i, player in enumerate(players, 1):
+        ranking.append({
+            "rank": i,
+            "playerId": player["playerId"],
+            "nombre": player["nombre"],
+            "posicion": player["posicion"],
+            "statsTemporada": player.get("statsTemporada", {}),
+            "promedios": player.get("promedios", {})
+        })
+    
+    return ranking
 
 # =============================================================================
 # FUNCIONES DE INICIALIZACIÓN
