@@ -301,6 +301,14 @@ async function addToLineup(card, position, multiplicador = 1.0) {
   const prevCard = userLineup.value[position]
   const prevId = userLineupIds.value[position]
   
+  // Log para debugging
+  console.log('🎴 Añadiendo carta a lineup:', {
+    cardId: card.id,
+    cardName: card.nombre,
+    playerId: card.playerId,
+    fullCard: card
+  })
+  
   // Actualizar localmente primero (optimistic update)
   userLineup.value[position] = card
   userLineupIds.value[position] = {
