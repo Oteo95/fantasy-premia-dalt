@@ -186,7 +186,7 @@ function setUserData(userData) {
         if (cards.length > 0) {
           userLineupIds.value[pos] = {
             id: id,
-            playerId: cards[0].jugadorId || null,
+            playerId: cards[0].playerId || null,
             multiplicador: 1.0
           }
         } else {
@@ -217,7 +217,7 @@ function setUserData(userData) {
           if (cards.length > 0) {
             userLineupIds.value[normalizedPos] = {
               id: value,
-              playerId: cards[0].jugadorId || null,
+              playerId: cards[0].playerId || null,
               multiplicador: 1.0
             }
           }
@@ -305,7 +305,7 @@ async function addToLineup(card, position, multiplicador = 1.0) {
   userLineup.value[position] = card
   userLineupIds.value[position] = {
     id: card.id,
-    playerId: card.jugadorId || null,
+    playerId: card.playerId || null,
     multiplicador: multiplicador
   }
   
