@@ -132,13 +132,8 @@ class OpenPackResponse(BaseModel):
     newCardIds: list[str]
     packType: str
 
-class LineupCardData(BaseModel):
-    id: str
-    playerId: Optional[str] = None
-    multiplicador: float = 1.0
-
 class SaveLineupRequest(BaseModel):
-    lineup: Dict[str, LineupCardData]  # Dict con posiciones como keys y objetos LineupCardData como values
+    lineup: Dict[str, Dict]  # Dict con posiciones como keys y objetos {id, playerId, multiplicador} como values
 
 class AddCodeRequest(BaseModel):
     code: str
@@ -450,8 +445,21 @@ async def save_lineup(request: SaveLineupRequest, user: dict = Depends(get_curre
     user_card_ids = user.get("cardIds", [])
     lineup_dict = {}
     for position, position_data in request.lineup.items():
-        # position_data es un objeto LineupCardData (Pydantic lo valida automáticamente)
-        card_id = position_data.id
+        # position_data es un diccionario simple
+        if not isinstance(position_data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cada posición debe contener un objeto con id, playerId y multiplicador"
+            )
+        
+        # Validar campos requeridos
+        if "id" not in position_data or "multiplicador" not in position_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cada posición debe contener id, playerId y multiplicador"
+            )
+        
+        card_id = position_data.get("id")
         if card_id and card_id not in user_card_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -460,9 +468,9 @@ async def save_lineup(request: SaveLineupRequest, user: dict = Depends(get_curre
         
         # Convertir a diccionario para guardar en Firestore
         lineup_dict[position] = {
-            "id": position_data.id,
-            "playerId": position_data.playerId,
-            "multiplicador": position_data.multiplicador
+            "id": position_data.get("id"),
+            "playerId": position_data.get("playerId"),
+            "multiplicador": position_data.get("multiplicador", 1.0)
         }
     
     # Validar máximo 5 posiciones
