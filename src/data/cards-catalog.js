@@ -187,9 +187,9 @@ export const CARDS_CATALOG = {
   // ═══════════════════════════════════════════════════════════════
   "card_007": {
     id: "card_007",
-    playerId: "tomas_ferreira_cunha_14",
+    playerId: "tomas_ferreira_cunha_15",
     nombre: "Tomás Ferreira Cunha",
-    numero: 14,
+    numero: 15,
     posicion: "Escolta",
     foto: "https://images.unsplash.com/photo-1520974735194-6c6a3d6b2f96?w=300&h=400&fit=crop&crop=faces",
     año: 2026,
