@@ -1,0 +1,26 @@
+{
+  "BIENVENIDA": {
+    "packType": "welcome",
+    "validUntil": "2030-12-31T23:59:59",
+    "description": "Pack de bienvenida - 5 cartas para empezar",
+    "active": true
+  },
+  "DEMO2026": {
+    "packType": "standard",
+    "validUntil": "2027-12-31T23:59:59",
+    "description": "Código de demostración estándar",
+    "active": true
+  },
+  "BASKET24": {
+    "packType": "standard",
+    "validUntil": "2027-12-31T23:59:59",
+    "description": "Código de temporada estándar",
+    "active": true
+  },
+  "LEGENDARIO": {
+    "packType": "legendary",
+    "validUntil": "2027-12-31T23:59:59",
+    "description": "Código especial legendario",
+    "active": true
+  }
+}

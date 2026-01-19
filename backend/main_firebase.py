@@ -135,6 +135,19 @@ class OpenPackResponse(BaseModel):
 class SaveLineupRequest(BaseModel):
     lineup: dict[str, str]  # Cambiado de list a dict
 
+class AddCodeRequest(BaseModel):
+    code: str
+    packType: str
+    validUntil: str  # ISO format datetime string
+    description: Optional[str] = ""
+    active: Optional[bool] = True
+
+class UpdateCodeRequest(BaseModel):
+    packType: Optional[str] = None
+    validUntil: Optional[str] = None  # ISO format datetime string
+    description: Optional[str] = None
+    active: Optional[bool] = None
+
 # =============================================================================
 # FUNCIONES AUXILIARES
 # =============================================================================
@@ -553,6 +566,137 @@ async def get_rankings(period: str = "monthly"):
     return {
         "period": period,
         "rankings": rankings
+    }
+
+# -----------------------------------------------------------------------------
+# GESTIÓN DE CÓDIGOS (ADMIN)
+# -----------------------------------------------------------------------------
+
+@app.get("/api/admin/codes")
+async def get_all_codes(user: dict = Depends(get_current_user)):
+    """
+    Obtiene todos los códigos disponibles del archivo JSON
+    Requiere autenticación
+    """
+    codes = fb.get_all_codes()
+    
+    # Convertir datetime a string ISO para la respuesta
+    codes_response = {}
+    for code, data in codes.items():
+        code_data = data.copy()
+        if isinstance(code_data.get("validUntil"), datetime):
+            code_data["validUntil"] = code_data["validUntil"].isoformat()
+        codes_response[code] = code_data
+    
+    return {
+        "success": True,
+        "codes": codes_response
+    }
+
+@app.post("/api/admin/codes")
+async def create_code(request: AddCodeRequest, user: dict = Depends(get_current_user)):
+    """
+    Crea un nuevo código en el archivo JSON
+    Requiere autenticación
+    """
+    try:
+        # Convertir string ISO a datetime
+        valid_until = datetime.fromisoformat(request.validUntil)
+        
+        # Validar packType
+        valid_pack_types = ["welcome", "standard", "legendary"]
+        if request.packType not in valid_pack_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"packType debe ser uno de: {', '.join(valid_pack_types)}"
+            )
+        
+        success = fb.add_code(
+            request.code,
+            request.packType,
+            valid_until,
+            request.description or "",
+            request.active if request.active is not None else True
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El código ya existe"
+            )
+        
+        return {
+            "success": True,
+            "message": f"Código {request.code} creado exitosamente"
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Formato de fecha inválido: {str(e)}"
+        )
+
+@app.put("/api/admin/codes/{code}")
+async def update_code_endpoint(code: str, request: UpdateCodeRequest, user: dict = Depends(get_current_user)):
+    """
+    Actualiza un código existente en el archivo JSON
+    Requiere autenticación
+    """
+    try:
+        # Convertir string ISO a datetime si se proporciona
+        valid_until = None
+        if request.validUntil:
+            valid_until = datetime.fromisoformat(request.validUntil)
+        
+        # Validar packType si se proporciona
+        if request.packType:
+            valid_pack_types = ["welcome", "standard", "legendary"]
+            if request.packType not in valid_pack_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"packType debe ser uno de: {', '.join(valid_pack_types)}"
+                )
+        
+        success = fb.update_code(
+            code,
+            request.packType,
+            valid_until,
+            request.description,
+            request.active
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="El código no existe"
+            )
+        
+        return {
+            "success": True,
+            "message": f"Código {code} actualizado exitosamente"
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Formato de fecha inválido: {str(e)}"
+        )
+
+@app.delete("/api/admin/codes/{code}")
+async def delete_code_endpoint(code: str, user: dict = Depends(get_current_user)):
+    """
+    Elimina un código del archivo JSON
+    Requiere autenticación
+    """
+    success = fb.delete_code(code)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El código no existe"
+        )
+    
+    return {
+        "success": True,
+        "message": f"Código {code} eliminado exitosamente"
     }
 
 # =============================================================================

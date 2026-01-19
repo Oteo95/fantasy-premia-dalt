@@ -272,39 +272,129 @@ async def add_redeemed_code(user_id: str, code: str) -> bool:
     return True
 
 # =============================================================================
-# CÓDIGOS CANJEABLES (EN MEMORIA - NO SE GUARDAN EN FIRESTORE)
+# CÓDIGOS CANJEABLES (DESDE ARCHIVO JSON)
 # =============================================================================
 
-VALID_CODES = {
-    "BIENVENIDA": {
-        "packType": "welcome",  # Pack especial de bienvenida
-        "validUntil": datetime(2030, 12, 31),
-        "description": "Pack de bienvenida - 5 cartas para empezar"
-    },
-    "DEMO2026": {
-        "packType": "standard",
-        "validUntil": datetime(2027, 12, 31)
-    },
-    "BASKET24": {
-        "packType": "standard",
-        "validUntil": datetime(2027, 12, 31)
-    },
-    "LEGENDARIO": {
-        "packType": "legendary",
-        "validUntil": datetime(2027, 12, 31)
-    }
-}
+# Ruta del archivo JSON de códigos
+CODES_JSON_PATH = pathlib.Path(__file__).parent / "codes.json"
+
+def load_codes() -> Dict:
+    """
+    Carga los códigos desde el archivo JSON
+    """
+    try:
+        if CODES_JSON_PATH.exists():
+            with open(CODES_JSON_PATH, 'r', encoding='utf-8') as f:
+                codes_data = json.load(f)
+                # Convertir strings ISO a datetime
+                for code, data in codes_data.items():
+                    if isinstance(data.get("validUntil"), str):
+                        data["validUntil"] = datetime.fromisoformat(data["validUntil"])
+                return codes_data
+        else:
+            print(f"⚠️  Archivo de códigos no encontrado: {CODES_JSON_PATH}")
+            return {}
+    except Exception as e:
+        print(f"❌ Error cargando códigos: {str(e)}")
+        return {}
+
+def save_codes(codes: Dict) -> bool:
+    """
+    Guarda los códigos en el archivo JSON
+    """
+    try:
+        # Convertir datetime a strings ISO antes de guardar
+        codes_to_save = {}
+        for code, data in codes.items():
+            data_copy = data.copy()
+            if isinstance(data_copy.get("validUntil"), datetime):
+                data_copy["validUntil"] = data_copy["validUntil"].isoformat()
+            codes_to_save[code] = data_copy
+        
+        with open(CODES_JSON_PATH, 'w', encoding='utf-8') as f:
+            json.dump(codes_to_save, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"❌ Error guardando códigos: {str(e)}")
+        return False
 
 def get_code(code: str) -> Optional[Dict]:
     """
-    Obtiene información de un código desde memoria (no Firestore)
+    Obtiene información de un código desde el archivo JSON
     """
+    codes = load_codes()
     code_upper = code.upper()
-    if code_upper in VALID_CODES:
-        code_data = VALID_CODES[code_upper].copy()
+    
+    if code_upper in codes:
+        code_data = codes[code_upper].copy()
         code_data["code"] = code_upper
+        
+        # Verificar si está activo
+        if not code_data.get("active", True):
+            return None
+        
         return code_data
     return None
+
+def get_all_codes() -> Dict:
+    """
+    Obtiene todos los códigos del archivo JSON
+    """
+    return load_codes()
+
+def add_code(code: str, pack_type: str, valid_until: datetime, description: str = "", active: bool = True) -> bool:
+    """
+    Añade un nuevo código al archivo JSON
+    """
+    codes = load_codes()
+    code_upper = code.upper()
+    
+    if code_upper in codes:
+        return False  # El código ya existe
+    
+    codes[code_upper] = {
+        "packType": pack_type,
+        "validUntil": valid_until,
+        "description": description,
+        "active": active
+    }
+    
+    return save_codes(codes)
+
+def update_code(code: str, pack_type: Optional[str] = None, valid_until: Optional[datetime] = None, 
+                description: Optional[str] = None, active: Optional[bool] = None) -> bool:
+    """
+    Actualiza un código existente en el archivo JSON
+    """
+    codes = load_codes()
+    code_upper = code.upper()
+    
+    if code_upper not in codes:
+        return False  # El código no existe
+    
+    if pack_type is not None:
+        codes[code_upper]["packType"] = pack_type
+    if valid_until is not None:
+        codes[code_upper]["validUntil"] = valid_until
+    if description is not None:
+        codes[code_upper]["description"] = description
+    if active is not None:
+        codes[code_upper]["active"] = active
+    
+    return save_codes(codes)
+
+def delete_code(code: str) -> bool:
+    """
+    Elimina un código del archivo JSON
+    """
+    codes = load_codes()
+    code_upper = code.upper()
+    
+    if code_upper not in codes:
+        return False  # El código no existe
+    
+    del codes[code_upper]
+    return save_codes(codes)
 
 # =============================================================================
 # SESIONES (EN MEMORIA - NO SE GUARDAN EN FIRESTORE)
@@ -380,9 +470,10 @@ async def initialize_firebase():
     """
     Inicializa datos necesarios en Firebase
     Solo crea el usuario demo si no existe
-    Los códigos están en memoria, no en Firestore
+    Los códigos se cargan desde archivo JSON
     """
     print("🔥 Inicializando Firebase...")
-    print(f"📋 Códigos disponibles en memoria: {', '.join(VALID_CODES.keys())}")
+    codes = load_codes()
+    print(f"📋 Códigos disponibles desde JSON: {', '.join(codes.keys())}")
     await init_demo_user()
     print("✅ Firebase inicializado correctamente")
