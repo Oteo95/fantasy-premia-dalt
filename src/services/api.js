@@ -151,12 +151,12 @@ export async function getCurrentUser() {
 
 /**
  * Guarda la alineación del usuario
- * @param {string[]} cardIds - Lista de IDs de cartas
+ * @param {Object} lineupData - Diccionario con posiciones y objetos {id, playerId, multiplicador}
  */
-export async function saveLineup(cardIds) {
+export async function saveLineup(lineupData) {
   return apiRequest('/api/user/lineup', {
     method: 'POST',
-    body: JSON.stringify({ lineup: cardIds })
+    body: JSON.stringify({ lineup: lineupData })
   })
 }
 
