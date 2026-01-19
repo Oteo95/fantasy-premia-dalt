@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 import secrets
 import random
 import os
@@ -138,7 +138,7 @@ class LineupCardData(BaseModel):
     multiplicador: float = 1.0
 
 class SaveLineupRequest(BaseModel):
-    lineup: dict[str, LineupCardData]  # Dict con posiciones como keys y objetos LineupCardData como values
+    lineup: Dict[str, LineupCardData]  # Dict con posiciones como keys y objetos LineupCardData como values
 
 class AddCodeRequest(BaseModel):
     code: str
