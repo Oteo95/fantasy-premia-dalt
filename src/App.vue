@@ -44,6 +44,7 @@
         <CollectionView v-else-if="currentView === 'collection'" />
         <LineupView v-else-if="currentView === 'lineup'" />
         <RankingsView v-else-if="currentView === 'rankings'" />
+        <StatsView v-else-if="currentView === 'stats'" />
       </main>
 
       <!-- Bottom navigation -->
@@ -74,6 +75,7 @@ import RedeemView from './views/RedeemView.vue'
 import CollectionView from './views/CollectionView.vue'
 import LineupView from './views/LineupView.vue'
 import RankingsView from './views/RankingsView.vue'
+import StatsView from './views/StatsView.vue'
 
 const { isLoggedIn, isLoading, userName, initApp, logout } = useGameStore()
 
@@ -85,6 +87,7 @@ const navItems = [
   { view: 'collection', icon: '🃏', label: 'Colección' },
   { view: 'redeem', icon: '🎁', label: 'Canjear' },
   { view: 'lineup', icon: '⚔️', label: 'Alineación' },
+  { view: 'stats', icon: '📊', label: 'Stats' },
   { view: 'rankings', icon: '🏆', label: 'Rankings' },
 ]
 

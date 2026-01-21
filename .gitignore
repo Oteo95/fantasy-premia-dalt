@@ -32,3 +32,5 @@ backend/firebase_config/firebase_config.json
 ARQUITECTURA.md
 
 backend/README_FIREBASE.md
+
+backend/__pycache__/

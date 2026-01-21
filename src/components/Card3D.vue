@@ -7,12 +7,13 @@
     @click="$emit('click')"
     ref="cardRef"
   >
+    <!-- Overlay de bloqueo FUERA del flip para que siempre se vea -->
+    <div v-if="locked" class="locked-overlay">
+      <div class="locked-icon">🔒</div>
+      <div class="locked-text">No obtenida</div>
+    </div>
+    
     <div class="card-inner" :style="cardStyle">
-      <!-- Overlay de bloqueo para cartas no obtenidas -->
-      <div v-if="locked" class="locked-overlay">
-        <div class="locked-icon">🔒</div>
-        <div class="locked-text">No obtenida</div>
-      </div>
       <!-- Parte trasera (sobre cerrado - pelota) -->
       <div class="card-face card-back">
         <div class="card-back-design">
